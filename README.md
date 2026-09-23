@@ -36,14 +36,23 @@ To compile the code and run all 142 unit and concurrency tests:
 mvn clean test
 ```
 
-### Run the Demo
-A `Main.java` class is provided to demonstrate the core scenarios (Seat Reuse, Overlap, Waitlist Promotion, No-Show). 
+### Run the Interactive Application
+An interactive console application (`Main.java`) is provided to simulate and demonstrate passenger flows in real time.
 To execute it using Maven:
 ```bash
 mvn exec:java -Dexec.mainClass="com.shuttle.Main"
 ```
 
-*(Alternatively, you can run `Main.java` directly via your IDE).*
+*(Alternatively, run `Main.java` directly via your IDE or with `java -cp out/classes com.shuttle.Main`).*
+
+#### Interactive Console Flow
+1. **Login:** Simple passenger login by ID (e.g., `P101`).
+2. **Menu Options:**
+   * **1. Book Journey:** Enter From and To stops (e.g., `A` to `C`). The system allocates a seat or places the passenger on the waitlist, displaying derived journey times.
+   * **2. Cancel Booking:** Enter Booking ID to cancel a confirmed reservation. Automatically promotes eligible waitlisted passengers.
+   * **3. View Booking:** Look up booking details (passenger, journey with route timings, seat, status).
+   * **4. Mark No-Show:** Marks the booking as `NO_SHOW` (seat remains occupied).
+   * **5. Logout / Exit:** Switch passenger profiles or terminate the session.
 
 ---
 
@@ -67,3 +76,12 @@ mvn exec:java -Dexec.mainClass="com.shuttle.Main"
 ### 4. Assumptions & Edge Cases Handled
 * **No-Show Does Not Free the Seat:** `markNoShow()` transitions the status but leaves the seat occupied. Because this system has no "live GPS/clock", it cannot know if the passenger will board at a later stop.
 * **Waitlist is a Status, Not an Exception:** Overbooking is a normal business flow. Rejecting overlapping bookings returns a `WAITLISTED` booking rather than throwing a `NoSeatAvailableException`. Exceptions are reserved for truly invalid states (e.g., `InvalidSegmentException` for travelling backwards).
+
+### 5. Scheduled Route Timings & Journey Derivation
+* **Stop Timetable:** The shuttle route follows a defined schedule:
+  * `A` = `10:00`
+  * `B` = `10:15`
+  * `C` = `10:30`
+  * `D` = `10:45`
+* **Derived Journey Times:** Journey times are automatically derived from the selected boarding and alighting stops (e.g., choosing `A -> C` derives `A -> C | 10:00 -> 10:30`). Both the route overview and booking confirmation/details display these timings.
+* **Index/Segment-Based Core Logic:** All seat allocation, conflict detection, and seat reuse algorithms remain strictly index/segment-based (`[fromIdx, toIdx)`). Arrival times are stored as domain metadata on `Stop` and do not alter or complicate the underlying interval math.
