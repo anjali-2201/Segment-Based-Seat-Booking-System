@@ -1,9 +1,11 @@
 package com.shuttle;
 
 import com.shuttle.domain.Booking;
+import com.shuttle.domain.BookingStatus;
 import com.shuttle.domain.Route;
 import com.shuttle.domain.Stop;
 import com.shuttle.domain.Trip;
+import com.shuttle.exception.ShuttleBookingException;
 import com.shuttle.repository.TripRepository;
 import com.shuttle.service.BookingService;
 import com.shuttle.service.WaitlistService;
@@ -11,15 +13,175 @@ import com.shuttle.service.WaitlistService;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Scanner;
 
 public class Main {
 
-    public static void main(String[] args) {
-        System.out.println("==================================================");
-        System.out.println("  Office Shuttle Segment-Based Seat Booking Demo  ");
-        System.out.println("==================================================\n");
+    private static final String TRIP_ID = "T1";
+    private static BookingService service;
+    private static Scanner scanner;
 
-        // 1. Setup Data
+    public static void main(String[] args) {
+        setupSystem();
+        scanner = new Scanner(System.in);
+
+        boolean running = true;
+        while (running) {
+            System.out.println("==================================================");
+            System.out.println("       OFFICE SHUTTLE BOOKING SYSTEM");
+            System.out.println("==================================================");
+            System.out.println("1. Login");
+            System.out.println("2. Exit");
+            System.out.print("\nEnter choice: ");
+
+            int choice = readInt();
+
+            switch (choice) {
+                case 1:
+                    loginFlow();
+                    break;
+                case 2:
+                    System.out.println("Exiting system. Goodbye!");
+                    running = false;
+                    break;
+                default:
+                    System.out.println("Invalid option. Please try again.\n");
+            }
+        }
+        scanner.close();
+    }
+
+    private static void loginFlow() {
+        System.out.print("Enter Passenger ID: ");
+        String passengerId = scanner.nextLine().trim();
+
+        if (passengerId.isEmpty()) {
+            System.out.println("Passenger ID cannot be empty.\n");
+            return;
+        }
+
+        boolean loggedIn = true;
+        while (loggedIn) {
+            System.out.println("\n--------------------------------------------------");
+            System.out.println("Welcome, " + passengerId + "!");
+            System.out.println("\nRoute: A -> B -> C -> D");
+            System.out.println("Trip : T1 (2 seats available)");
+            System.out.println("--------------------------------------------------");
+            System.out.println("1. Book Journey");
+            System.out.println("2. Cancel Booking");
+            System.out.println("3. View Booking");
+            System.out.println("4. Mark No-Show");
+            System.out.println("5. Logout");
+            System.out.print("\nEnter choice: ");
+
+            int choice = readInt();
+            System.out.println(); // newline for formatting
+
+            try {
+                switch (choice) {
+                    case 1:
+                        bookJourney(passengerId);
+                        break;
+                    case 2:
+                        cancelBooking();
+                        break;
+                    case 3:
+                        viewBooking();
+                        break;
+                    case 4:
+                        markNoShow();
+                        break;
+                    case 5:
+                        System.out.println("Logging out...\n");
+                        loggedIn = false;
+                        break;
+                    default:
+                        System.out.println("Invalid option. Please try again.");
+                }
+            } catch (ShuttleBookingException e) {
+                System.out.println("! ERROR: " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("! UNEXPECTED ERROR: " + e.getMessage());
+            }
+        }
+    }
+
+    private static void bookJourney(String passengerId) {
+        System.out.print("From Stop: ");
+        String fromStop = scanner.nextLine().trim();
+        System.out.print("To Stop: ");
+        String toStop = scanner.nextLine().trim();
+
+        Booking b = service.book(TRIP_ID, passengerId, fromStop, toStop);
+
+        System.out.println();
+        if (b.getStatus() == BookingStatus.CONFIRMED) {
+            System.out.println("v BOOKING CONFIRMED");
+        } else {
+            System.out.println("! NO SEAT AVAILABLE");
+        }
+        
+        System.out.println("\nBooking ID : " + b.getBookingId());
+        System.out.println("Passenger  : " + b.getPassengerId());
+        System.out.println("Journey    : " + fromStop + " -> " + toStop);
+        if (b.getSeatNumber() != null) {
+            System.out.println("Seat       : " + b.getSeatNumber());
+        }
+        System.out.println("Status     : " + b.getStatus());
+    }
+
+    private static void cancelBooking() {
+        System.out.print("Enter Booking ID: ");
+        String bookingId = scanner.nextLine().trim();
+
+        Booking promoted = service.cancel(TRIP_ID, bookingId);
+        
+        System.out.println("\nv BOOKING CANCELLED");
+        System.out.println("Booking " + bookingId + " has been successfully cancelled.");
+
+        if (promoted != null) {
+            System.out.println("\n*** WAITLIST PROMOTION ***");
+            System.out.println("Passenger " + promoted.getPassengerId() + " (Booking " + promoted.getBookingId() + ") was automatically promoted to CONFIRMED on Seat " + promoted.getSeatNumber() + "!");
+        }
+    }
+
+    private static void viewBooking() {
+        System.out.print("Enter Booking ID: ");
+        String bookingId = scanner.nextLine().trim();
+
+        Booking b = service.getBooking(TRIP_ID, bookingId);
+
+        System.out.println("\n--- Booking Details ---");
+        System.out.println("Booking ID : " + b.getBookingId());
+        System.out.println("Passenger  : " + b.getPassengerId());
+        System.out.println("Journey    : Segment " + b.getSegment().getFromIdx() + " -> " + b.getSegment().getToIdx() + " (index-based)");
+        System.out.println("Seat       : " + (b.getSeatNumber() == null ? "None" : b.getSeatNumber()));
+        System.out.println("Status     : " + b.getStatus());
+    }
+
+    private static void markNoShow() {
+        System.out.print("Enter Booking ID: ");
+        String bookingId = scanner.nextLine().trim();
+
+        service.markNoShow(TRIP_ID, bookingId);
+        
+        System.out.println("\nv MARKED AS NO-SHOW");
+        System.out.println("Booking " + bookingId + " status updated to NO_SHOW.");
+        System.out.println("Note: The seat remains occupied according to system rules.");
+    }
+
+    private static int readInt() {
+        while (true) {
+            try {
+                String input = scanner.nextLine().trim();
+                return Integer.parseInt(input);
+            } catch (NumberFormatException e) {
+                System.out.print("Invalid input. Please enter a number: ");
+            }
+        }
+    }
+
+    private static void setupSystem() {
         Stop stopA = new Stop("A", "Alpha", 0, LocalTime.of(10, 0));
         Stop stopB = new Stop("B", "Bravo", 1, LocalTime.of(10, 15));
         Stop stopC = new Stop("C", "Charlie", 2, LocalTime.of(10, 30));
@@ -29,48 +191,10 @@ public class Main {
         
         TripRepository repo = new TripRepository();
         WaitlistService waitlistService = new WaitlistService();
-        BookingService service = new BookingService(repo, waitlistService);
+        service = new BookingService(repo, waitlistService);
 
-        // Create a 2-seat trip
-        Trip trip = new Trip("T1", route, LocalDate.now(), 2);
+        // Create a 2-seat trip as per the requirements
+        Trip trip = new Trip(TRIP_ID, route, LocalDate.now(), 2);
         repo.save(trip);
-
-        System.out.println("Trip 'T1' created on Route A -> B -> C -> D with 2 seats.\n");
-
-        // --- Scenario 1: Basic Booking and Seat Reuse ---
-        System.out.println("--- Scenario 1: Seat Reuse (Non-overlapping) ---");
-        Booking b1 = service.book("T1", "Pass-1", "A", "B");
-        System.out.println("Pass-1 books A->B: Status=" + b1.getStatus() + ", Seat=" + b1.getSeatNumber());
-
-        Booking b2 = service.book("T1", "Pass-2", "B", "D");
-        System.out.println("Pass-2 books B->D: Status=" + b2.getStatus() + ", Seat=" + b2.getSeatNumber());
-        System.out.println("Notice Pass-1 and Pass-2 share Seat 1 because their segments do not overlap.\n");
-
-        // --- Scenario 2: Overlapping and Waitlist ---
-        System.out.println("--- Scenario 2: Overlapping causes Waitlist ---");
-        Booking b3 = service.book("T1", "Pass-3", "A", "C");
-        System.out.println("Pass-3 books A->C: Status=" + b3.getStatus() + ", Seat=" + b3.getSeatNumber());
-        
-        Booking b4 = service.book("T1", "Pass-4", "A", "D");
-        System.out.println("Pass-4 books A->D: Status=" + b4.getStatus() + ", Seat=" + (b4.getSeatNumber() == null ? "None" : b4.getSeatNumber()));
-        System.out.println("Notice Pass-4 is WAITLISTED because Seat 1 is occupied A->D, and Seat 2 is occupied A->C.\n");
-
-        // --- Scenario 3: Cancellation and Promotion ---
-        System.out.println("--- Scenario 3: Cancellation & Waitlist Promotion ---");
-        System.out.println("Cancelling Pass-3's booking (A->C on Seat 2)...");
-        service.cancel("T1", b3.getBookingId());
-        
-        Booking b4Updated = service.getBooking("T1", b4.getBookingId());
-        System.out.println("Pass-4 status is now: " + b4Updated.getStatus() + ", Seat=" + b4Updated.getSeatNumber());
-        System.out.println("Notice Pass-4 was automatically promoted to CONFIRMED on Seat 2!\n");
-
-        // --- Scenario 4: Validation and No-Show ---
-        System.out.println("--- Scenario 4: Mark No-Show ---");
-        service.markNoShow("T1", b2.getBookingId());
-        Booking b2Updated = service.getBooking("T1", b2.getBookingId());
-        System.out.println("Pass-2 marked as NO_SHOW. Status is now: " + b2Updated.getStatus());
-        System.out.println("Seat 1 remains occupied for B->D because a no-show does not free the seat mid-route.\n");
-
-        System.out.println("Demo completed successfully.");
     }
 }

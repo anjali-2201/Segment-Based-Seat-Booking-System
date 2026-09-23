@@ -123,7 +123,7 @@ public class BookingService {
      * @throws BookingNotFoundException     unknown bookingId on this trip
      * @throws InvalidBookingStateException booking not in CONFIRMED status
      */
-    public void cancel(String tripId, String bookingId) {
+    public Booking cancel(String tripId, String bookingId) {
         Validator.requireNonBlank(tripId,    "tripId");
         Validator.requireNonBlank(bookingId, "bookingId");
 
@@ -144,7 +144,7 @@ public class BookingService {
 
             trip.getSeat(booking.getSeatNumber()).removeBooking(booking.getSegment());
             booking.cancel();
-            waitlistService.promoteOne(trip);   // at most one, inside the lock
+            return waitlistService.promoteOne(trip);   // at most one, inside the lock
         }
     }
 
