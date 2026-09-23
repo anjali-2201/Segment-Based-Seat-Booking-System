@@ -14,11 +14,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class Main {
 
     private static final String TRIP_ID = "T1";
     private static BookingService service;
+    private static Route route;   // held for stop-name lookups in viewBooking()
     private static Scanner scanner;
 
     public static void main(String[] args) {
@@ -64,8 +66,8 @@ public class Main {
         while (loggedIn) {
             System.out.println("\n--------------------------------------------------");
             System.out.println("Welcome, " + passengerId + "!");
-            System.out.println("\nRoute: A -> B -> C -> D");
-            System.out.println("Trip : T1 (2 seats available)");
+            System.out.println("\nRoute: " + formatRouteWithTimings());
+            System.out.println("Trip : T1 (2 total seats)");
             System.out.println("--------------------------------------------------");
             System.out.println("1. Book Journey");
             System.out.println("2. Cancel Booking");
@@ -123,7 +125,7 @@ public class Main {
         
         System.out.println("\nBooking ID : " + b.getBookingId());
         System.out.println("Passenger  : " + b.getPassengerId());
-        System.out.println("Journey    : " + fromStop + " -> " + toStop);
+        System.out.println("Journey    : " + formatJourney(b));
         if (b.getSeatNumber() != null) {
             System.out.println("Seat       : " + b.getSeatNumber());
         }
@@ -154,9 +156,21 @@ public class Main {
         System.out.println("\n--- Booking Details ---");
         System.out.println("Booking ID : " + b.getBookingId());
         System.out.println("Passenger  : " + b.getPassengerId());
-        System.out.println("Journey    : Segment " + b.getSegment().getFromIdx() + " -> " + b.getSegment().getToIdx() + " (index-based)");
+        System.out.println("Journey    : " + formatJourney(b));
         System.out.println("Seat       : " + (b.getSeatNumber() == null ? "None" : b.getSeatNumber()));
         System.out.println("Status     : " + b.getStatus());
+    }
+
+    private static String formatRouteWithTimings() {
+        return route.getStops().stream()
+                .map(s -> s.getId() + " (" + s.getArrivalTime() + ")")
+                .collect(Collectors.joining(" -> "));
+    }
+
+    private static String formatJourney(Booking b) {
+        Stop from = route.getStops().get(b.getSegment().getFromIdx());
+        Stop to   = route.getStops().get(b.getSegment().getToIdx());
+        return from.getId() + " -> " + to.getId() + " | " + from.getArrivalTime() + " -> " + to.getArrivalTime();
     }
 
     private static void markNoShow() {
@@ -187,7 +201,7 @@ public class Main {
         Stop stopC = new Stop("C", "Charlie", 2, LocalTime.of(10, 30));
         Stop stopD = new Stop("D", "Delta", 3, LocalTime.of(10, 45));
 
-        Route route = new Route("R1", "City Loop", List.of(stopA, stopB, stopC, stopD));
+        route = new Route("R1", "City Loop", List.of(stopA, stopB, stopC, stopD));
         
         TripRepository repo = new TripRepository();
         WaitlistService waitlistService = new WaitlistService();
